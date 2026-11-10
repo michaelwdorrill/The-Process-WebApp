@@ -99,7 +99,8 @@ button { cursor: pointer; }
 
 /* ---------- Layout ---------- */
 .shell {
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--detail-w);
   grid-template-rows: minmax(0, 1fr);
