@@ -551,6 +551,14 @@ function groupHtml(label, tasks, rowOpts) {
   </section>`;
 }
 
+function collapsibleGroupHtml(label, tasks, rowOpts) {
+  if (!tasks.length) return "";
+  return `<details class="grp" open>
+    <summary class="grp-label" style="cursor:pointer"><span>${esc(label)}</span><span>${tasks.length}</span></summary>
+    <div class="grp" style="margin-top:7px">${tasks.map((t) => rowHtml(t, rowOpts)).join("")}</div>
+  </details>`;
+}
+
 function headHtml(title, sub = "", actions = "", kicker = "") {
   return `<header class="page-head">
     <div class="topbar"><span class="logo">The Process</span>${syncLineHtml()}</div>
@@ -587,7 +595,7 @@ function todayHtml() {
   return `${headHtml("Today", `<span>${esc(todayDateText())}</span>`)}
     ${
       any
-        ? groups.map((g) => groupHtml(g.label, g.tasks)).join("")
+        ? groups.map((g) => (g.collapsible ? collapsibleGroupHtml(g.label, g.tasks) : groupHtml(g.label, g.tasks))).join("")
         : `<p class="empty">${
             neverSynced
               ? "Loading your tasks…"

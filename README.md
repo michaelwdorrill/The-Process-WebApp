@@ -25,9 +25,10 @@ Machinery and Disciplined Dollar web apps.
 Three panes on a desktop (rail, list, detail). Below 1180px the detail slides over
 the list. Below 760px it's one column with a bottom nav and a + button.
 
-- **Today** (home): open tasks flagged `now`, overdue, due today, blocked, or
-  awaiting review, from both domains in one list. Grouped Now / Needs your review /
-  Due today, ordered priority first, then due date.
+- **Today** (home): open tasks from both domains in one list, grouped Now / Needs
+  your review / Due today / Soon / Someday (the last two collapsible). A blocked
+  task is demoted out of Now by the same `effectivePriorityRank` rule as the
+  project page, rather than always forced into Now.
 - **Upcoming**: open tasks due in the next 14 days, by day, overdue first.
 - **Review**: `needs_review` tasks. Approve marks it done. Send back sets it to
   `in_progress` and logs a "Sent back: …" progress note.
@@ -38,7 +39,9 @@ the list. Below 760px it's one column with a bottom nav and a + button.
   unmet blocker (never above its own stored priority), recomputed live so it
   moves back up once that dependency clears — same rule as the Android client's
   `effectivePriorityRank` (`domain/TodayLogic.kt`), ported here as
-  `effectivePriorityRank` in `model.js`.
+  `effectivePriorityRank` in `model.js`. A task marked `blocked` with no tracked
+  dependency is still demoted one tier behind itself (a web-only extension of
+  the rule; the Android client only demotes via a tracked dependency).
 - **Task detail**: status, priority, recurrence, next due, blocked reason, evidence,
   claim, dependencies, and the progress log, which is where agent notes live.
   Edit, mark done, reopen, add a note.

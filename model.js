@@ -202,22 +202,33 @@ export function openTasks(cache) {
   return Object.values(cache.tasks).filter((t) => OPEN.has(t.status));
 }
 
-/** Today, grouped. A task appears once: review wins, then Now (flagged now,
- *  overdue, or blocked), then Due today. */
+/** Today, grouped. A task appears once: review wins, then Now (effectively
+ *  now-priority, or overdue), then Due today, then collapsible Soon/Someday
+ *  sections -- same effective-priority ranking as the project page, so a
+ *  blocked task is demoted out of Now instead of always showing there. */
 export function todayGroups(cache, now = Date.now()) {
   const t = todayDay(now);
-  const groups = { now: [], review: [], due: [] };
+  const groups = { now: [], review: [], due: [], soon: [], someday: [] };
   for (const task of openTasks(cache)) {
+    if (task.status === "needs_review") {
+      groups.review.push(task);
+      continue;
+    }
     const day = dueDay(task);
-    if (task.status === "needs_review") groups.review.push(task);
-    else if (task.priority === "now" || task.status === "blocked" || (day !== null && day < t)) groups.now.push(task);
+    const overdue = day !== null && day < t;
+    const rank = effectivePriorityRank(cache, task);
+    if (overdue || rank === 0) groups.now.push(task);
     else if (day !== null && day <= t) groups.due.push(task);
+    else if (rank === 1) groups.soon.push(task);
+    else groups.someday.push(task);
   }
   for (const list of Object.values(groups)) list.sort(byPriorityThenDue);
   return [
     { key: "now", label: "Now", tasks: groups.now },
     { key: "review", label: "Needs your review", tasks: groups.review },
     { key: "due", label: "Due today", tasks: groups.due },
+    { key: "soon", label: "Soon", tasks: groups.soon, collapsible: true },
+    { key: "someday", label: "Someday", tasks: groups.someday, collapsible: true },
   ];
 }
 
@@ -268,13 +279,18 @@ function unmetBlockerPriorities(cache, taskId) {
  *  most urgent unmet blocker (never more urgent than its own stored
  *  priority, never past someday) -- see TodayLogic.kt's identical rule in
  *  the Android client. Recomputed live from current dependency state, never
- *  stored, so a task moves back up as soon as its blocker clears. */
+ *  stored, so a task moves back up as soon as its blocker clears. A task
+ *  marked blocked with no tracked dependency (no linked blocking task) is
+ *  still demoted one tier behind itself, since it can't be worked now. */
 export function effectivePriorityRank(cache, task) {
   const ownRank = PRIORITY_RANK[task.priority] ?? 2;
   const blockers = unmetBlockerPriorities(cache, task.id);
-  if (blockers.length === 0) return ownRank;
-  const mostUrgentBlockerRank = Math.min(...blockers.map((p) => PRIORITY_RANK[p] ?? 2));
-  return Math.min(Math.max(ownRank, mostUrgentBlockerRank + 1), PRIORITY_RANK.someday);
+  if (blockers.length > 0) {
+    const mostUrgentBlockerRank = Math.min(...blockers.map((p) => PRIORITY_RANK[p] ?? 2));
+    return Math.min(Math.max(ownRank, mostUrgentBlockerRank + 1), PRIORITY_RANK.someday);
+  }
+  if (task.status === "blocked") return Math.min(ownRank + 1, PRIORITY_RANK.someday);
+  return ownRank;
 }
 
 /** This project's open tasks, grouped by effective priority (now/soon/someday,
