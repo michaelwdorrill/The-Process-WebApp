@@ -658,7 +658,8 @@ function projectHtml() {
   const domain = domainOf(p);
   const c = M.projectCounts(state.cache, p.id, ownerId());
   const tasks = M.projectTasks(state.cache, p.id);
-  const open = tasks.filter((t) => M.OPEN.has(t.status));
+  const openGroups = M.openTasksByPriority(state.cache, p.id);
+  const openCount = openGroups.reduce((n, g) => n + g.tasks.length, 0);
   const closed = tasks.filter((t) => !M.OPEN.has(t.status));
   const decisions = M.decisionsFor(state.cache, p.id);
   const kicker = `<div class="kicker"><span class="chip ${domain}">${domain === "ai" ? "AI project" : "Life project"}</span>${
@@ -688,7 +689,18 @@ function projectHtml() {
           : ""
       }
     </section>
-    ${open.length ? groupHtml("Tasks", open, { showProject: false }) : `<p class="empty">No open tasks.</p>`}
+    ${
+      openGroups.length
+        ? `<div class="grp-label"><span>Tasks</span><span>${openCount}</span></div>${openGroups
+            .map(
+              (g) => `<details class="grp" open>
+                <summary class="grp-label" style="cursor:pointer"><span>${esc(g.label)}</span><span>${g.tasks.length}</span></summary>
+                <div class="grp" style="margin-top:7px">${g.tasks.map((t) => rowHtml(t, { showProject: false })).join("")}</div>
+              </details>`,
+            )
+            .join("")}`
+        : `<p class="empty">No open tasks.</p>`
+    }
     ${
       closed.length
         ? `<details class="grp"><summary class="grp-label" style="cursor:pointer"><span>Done and cancelled</span><span>${closed.length}</span></summary>

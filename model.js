@@ -10,7 +10,9 @@ export const LIFE_ADMIN = Object.freeze({
 });
 
 export const OPEN = new Set(["not_started", "in_progress", "blocked", "needs_review"]);
+export const PRIORITIES = ["now", "soon", "someday"];
 export const PRIORITY_RANK = { now: 0, soon: 1, someday: 2 };
+export const PRIORITY_LABEL = { now: "Now", soon: "Soon", someday: "Someday" };
 export const STATUS_LABEL = {
   not_started: "Not started",
   in_progress: "In progress",
@@ -249,6 +251,47 @@ export function projectTasks(cache, projectId) {
   return Object.values(cache.tasks)
     .filter((t) => t.projectId === projectId)
     .sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || byPriorityThenDue(a, b));
+}
+
+/** Priorities of this task's unmet (not done) dependencies. */
+function unmetBlockerPriorities(cache, taskId) {
+  const out = [];
+  for (const d of Object.values(cache.deps)) {
+    if (d.taskId !== taskId) continue;
+    const blocker = cache.tasks[d.dependsOnTaskId];
+    if (blocker && blocker.status !== "done") out.push(blocker.priority);
+  }
+  return out;
+}
+
+/** A task waiting on an unfinished dependency is ranked one tier behind its
+ *  most urgent unmet blocker (never more urgent than its own stored
+ *  priority, never past someday) -- see TodayLogic.kt's identical rule in
+ *  the Android client. Recomputed live from current dependency state, never
+ *  stored, so a task moves back up as soon as its blocker clears. */
+export function effectivePriorityRank(cache, task) {
+  const ownRank = PRIORITY_RANK[task.priority] ?? 2;
+  const blockers = unmetBlockerPriorities(cache, task.id);
+  if (blockers.length === 0) return ownRank;
+  const mostUrgentBlockerRank = Math.min(...blockers.map((p) => PRIORITY_RANK[p] ?? 2));
+  return Math.min(Math.max(ownRank, mostUrgentBlockerRank + 1), PRIORITY_RANK.someday);
+}
+
+/** This project's open tasks, grouped by effective priority (now/soon/someday,
+ *  in that order; a group is omitted when empty), each sorted by due date
+ *  then title within the group. */
+export function openTasksByPriority(cache, projectId) {
+  const open = Object.values(cache.tasks).filter((t) => t.projectId === projectId && OPEN.has(t.status));
+  const byRank = new Map();
+  for (const t of open) {
+    const rank = effectivePriorityRank(cache, t);
+    if (!byRank.has(rank)) byRank.set(rank, []);
+    byRank.get(rank).push(t);
+  }
+  const byDueThenTitle = (a, b) => (dueDay(a) ?? Infinity) - (dueDay(b) ?? Infinity) || a.title.localeCompare(b.title);
+  return PRIORITIES.map((key, rank) => ({ key, label: PRIORITY_LABEL[key], tasks: (byRank.get(rank) ?? []).sort(byDueThenTitle) })).filter(
+    (g) => g.tasks.length > 0,
+  );
 }
 
 /** Honest counts, each task in exactly one bucket. Cancelled tasks are left

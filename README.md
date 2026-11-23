@@ -33,7 +33,12 @@ the list. Below 760px it's one column with a bottom nav and a + button.
   `in_progress` and logs a "Sent back: …" progress note.
 - **Projects / project page**: counts (done of total, needs review, claimed by an
   agent, open — never a percentage), tasks, the decisions log, a form to record a
-  decision.
+  decision. Open tasks group into collapsible Now/Soon/Someday sections; a task
+  waiting on an unfinished dependency displays one tier behind its most urgent
+  unmet blocker (never above its own stored priority), recomputed live so it
+  moves back up once that dependency clears — same rule as the Android client's
+  `effectivePriorityRank` (`domain/TodayLogic.kt`), ported here as
+  `effectivePriorityRank` in `model.js`.
 - **Task detail**: status, priority, recurrence, next due, blocked reason, evidence,
   claim, dependencies, and the progress log, which is where agent notes live.
   Edit, mark done, reopen, add a note.
