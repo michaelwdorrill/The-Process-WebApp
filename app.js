@@ -142,6 +142,7 @@ async function ensureLifeAdmin() {
 }
 
 async function endSession(message) {
+  dismissAgentKey();
   for (const p of state.pending.values()) clearTimeout(p.timer);
   state.pending.clear();
   await signOut();
@@ -653,7 +654,8 @@ function projectsHtml() {
       ? `<section class="grp"><div class="grp-label"><span>${label}</span><span>${list.length}</span></div>${list.map(projectCardHtml).join("")}</section>`
       : "";
   const empty = !ai.length && !personal.length && !finished.length;
-  return `${headHtml("Projects", "", `<button class="btn small" data-action="new-project">+ New project</button>`)}
+  return `${headHtml("Projects", "", `<button class="btn small" data-action="new-project">+ New project</button>
+    <button class="btn small ghost" data-action="agent-key">Issue agent key</button>`)}
     ${empty ? `<p class="empty">No projects yet.</p>` : ""}
     ${sec("AI work", ai)}${sec("Life", personal)}${sec("Finished", finished)}`;
 }
@@ -1062,7 +1064,7 @@ function editFormHtml(task) {
 }
 
 // ---------------------------------------------------------------------------
-// Dialogs: quick add and new project
+// Dialogs
 // ---------------------------------------------------------------------------
 
 function openQuickAdd(projectId = M.LIFE_ADMIN.id) {
@@ -1102,6 +1104,30 @@ function openNewProject() {
   dialog.querySelector("[name=title]").focus();
 }
 
+function openAgentKey() {
+  dialog.innerHTML = `<form class="dialog-form" data-form="agent-key">
+    <h2>Issue agent key</h2>
+    <label class="field"><span>Agent ID</span><input name="actorId" required maxlength="64" value="chatgpt-codex"
+      pattern="[a-z][a-z0-9_\\-]*" title="Use lowercase letters, digits, hyphens or underscores. Start with a letter." autocomplete="off" spellcheck="false"></label>
+    <input type="hidden" name="id" value="${uuid()}">
+    <div class="error" role="alert"></div>
+    <div class="btns"><button type="button" class="btn ghost" data-action="close-dialog">Cancel</button>
+      <button type="submit" class="btn primary">Issue key</button></div>
+  </form>`;
+  dialog.showModal();
+}
+
+function dismissAgentKey() {
+  if (dialog.querySelector('[data-form="agent-key"], [data-issued-key]')) {
+    dialog.replaceChildren();
+    dialog.close();
+  }
+}
+
+// Clear one-time credentials on dismissal, including navigation into the back/forward cache.
+dialog.addEventListener("close", () => { if (!dialog.open) dismissAgentKey(); });
+window.addEventListener("pagehide", dismissAgentKey);
+
 // ---------------------------------------------------------------------------
 // Form submissions
 // ---------------------------------------------------------------------------
@@ -1129,6 +1155,38 @@ function resetForm(form) {
 }
 
 const SUBMIT = {
+  async "agent-key"(form) {
+    if (form.ariaBusy === "true") return;
+    const { id, actorId } = form.elements;
+    const cancel = form.querySelector('[data-action="close-dialog"]');
+    const submit = form.querySelector('[type="submit"]');
+    form.ariaBusy = "true";
+    cancel.disabled = true;
+    submit.textContent = "Issuing…";
+    let issued;
+    try {
+      issued = await api.issueAgentKey(id.value, actorId.value);
+    } catch (err) {
+      throw new Error(`${errorText(err)} (key ID ${id.value})`);
+    } finally {
+      form.ariaBusy = "false";
+      cancel.disabled = false;
+      submit.textContent = "Issue key";
+    }
+    if (!dialog.open || !form.isConnected) return;
+    dialog.innerHTML = `<div class="dialog-form" data-issued-key>
+      <h2>Key for ${esc(issued.actorId)}</h2>
+      <p>Save this key in Bitwarden before closing this dialog. It is shown once.</p>
+      <label class="field"><span>API key</span><input readonly autocomplete="off" spellcheck="false"></label>
+      <p class="hint">Key ID <code>${esc(issued.id)}</code></p>
+      <div class="btns"><button class="btn" data-action="close-dialog">Done</button></div>
+    </div>`;
+    const field = dialog.querySelector("input");
+    field.value = issued.key;
+    field.focus();
+    field.select();
+  },
+
   async "quick-add"(form) {
     const f = new FormData(form);
     const projectId = String(f.get("projectId"));
@@ -1265,6 +1323,7 @@ document.addEventListener("change", (e) => {
 // ---------------------------------------------------------------------------
 
 const ACTIONS = {
+  "agent-key": openAgentKey,
   "quick-add": (el) => openQuickAdd(el.dataset.project || M.LIFE_ADMIN.id),
   "new-project": () => openNewProject(),
   "close-dialog": () => dialog.close(),
@@ -1340,9 +1399,15 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// Close the dialog on a backdrop click.
+// Keep a pending one-time response visible until its key can be copied.
+function issuingKey() {
+  return dialog.querySelector('form[data-form="agent-key"][aria-busy="true"]');
+}
+dialog.addEventListener("cancel", (e) => {
+  if (issuingKey()) e.preventDefault();
+});
 dialog.addEventListener("click", (e) => {
-  if (e.target === dialog) dialog.close();
+  if (e.target === dialog && !issuingKey()) dialog.close();
 });
 
 // ---------------------------------------------------------------------------
