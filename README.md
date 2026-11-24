@@ -47,6 +47,9 @@ the list. Below 760px it's one column with a bottom nav and a + button.
   Edit, mark done, reopen, add a note.
 - **Quick add**: a plain form: title, project (defaults to Life admin), priority,
   optional repeat, optional notes.
+- **Projects → Issue agent key** uses the signed-in owner's session. Choose an agent
+  ID and copy the one-time key into your password manager before closing the dialog.
+  Save the key ID alongside it in case you need to revoke it.
 
 AI work has a periwinkle edge and an "AI" tag, personal work an apricot edge and a
 "Life" tag. Priority is shown by position, never by color. Repeating tasks have a

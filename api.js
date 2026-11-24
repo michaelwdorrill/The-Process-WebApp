@@ -44,6 +44,7 @@ const id = () => crypto.randomUUID();
 // Creates take a client-generated id so a retry is a no-op on the server.
 // Callers that may retry (forms) pass their own `id`, minted once per form.
 export const api = {
+  issueAgentKey: (id, actorId) => call("/agent-keys", { method: "POST", body: { id, actorId } }),
   changes: (since) => call(`/changes?since=${since}`),
   attention: () => call("/attention"),
   /** Exactly this body, so the Android app's create converges on the same row. */
